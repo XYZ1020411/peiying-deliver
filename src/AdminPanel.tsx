@@ -54,8 +54,6 @@ export default function AdminPanel({ onRefresh, onMessage }: { onRefresh: () => 
     const { error } = await db.from("activities").delete().eq("id", a.id);
     onMessage(error ? error.message : "活動已刪除。"); await load();
   }
-  const productInput = (label: string, key: keyof typeof blankProduct, type = "text", wide = false) => <label className={wide ? "admin-wide" : ""}>{label}<input type={type} value={String(product[key])} onChange={e => setProduct(v => ({ ...v, [key]: type === "checkbox" ? e.target.checked : e.target.value }))} /></label>;
-
   return <section className="admin-manager">
     <div className="admin-switch"><button className={section === "products" ? "selected" : ""} onClick={() => setSection("products")}><Package size={16}/> 商品管理</button><button className={section === "activities" ? "selected" : ""} onClick={() => setSection("activities")}><Megaphone size={16}/> 活動管理</button></div>
     {section === "products" && <>
