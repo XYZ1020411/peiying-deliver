@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Plus, Pencil, Trash2, Megaphone, Package, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Megaphone, Package, X, RefreshCw } from "lucide-react";
+import CocoSyncPanel from "./CocoSyncPanel";
 
 const db = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
 type Product = { id: string; name: string; description: string | null; price: number; image_url: string | null; stock: number; is_available: boolean; category: string; sort_order: number };
@@ -13,7 +14,7 @@ export default function AdminPanel({ onRefresh, onMessage }: { onRefresh: () => 
   const [activities, setActivities] = useState<Activity[]>([]);
   const [product, setProduct] = useState({ ...blankProduct, id: "" });
   const [activity, setActivity] = useState({ ...blankActivity, id: "" });
-  const [section, setSection] = useState<"products" | "activities">("products");
+  const [section, setSection] = useState<"products" | "activities" | "coco">("products");
   const [loading, setLoading] = useState(false);
 
   async function load() {
@@ -55,7 +56,8 @@ export default function AdminPanel({ onRefresh, onMessage }: { onRefresh: () => 
     onMessage(error ? error.message : "活動已刪除。"); await load();
   }
   return <section className="admin-manager">
-    <div className="admin-switch"><button className={section === "products" ? "selected" : ""} onClick={() => setSection("products")}><Package size={16}/> 商品管理</button><button className={section === "activities" ? "selected" : ""} onClick={() => setSection("activities")}><Megaphone size={16}/> 活動管理</button></div>
+    <div className="admin-switch"><button className={section === "products" ? "selected" : ""} onClick={() => setSection("products")}><Package size={16}/> 商品管理</button><button className={section === "activities" ? "selected" : ""} onClick={() => setSection("activities")}><Megaphone size={16}/> 活動管理</button><button className={section === "coco" ? "selected" : ""} onClick={() => setSection("coco")}><RefreshCw size={16}/> CoCo同步</button></div>
+    {section === "coco" && <CocoSyncPanel onMessage={onMessage} onRefresh={onRefresh}/>}
     {section === "products" && <>
       <div className="admin-manager-head"><div><h3>{product.id ? "編輯商品" : "建立新商品"}</h3><p>設定商品資訊、價格、庫存及上架狀態</p></div><button className="admin-clear" onClick={() => setProduct({ ...blankProduct, id: "" })}><X size={15}/> 清空</button></div>
       <div className="admin-form-grid">
