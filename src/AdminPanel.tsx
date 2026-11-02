@@ -89,3 +89,16 @@ export default function AdminPanel({ onRefresh, onMessage }: { onRefresh: () => 
     </>}
   </section>;
 }
+
+export function ActivityFeed() {
+  const [items, setItems] = useState<Activity[]>([]);
+  useEffect(() => {
+    let active = true;
+    db.from("activities").select("id,title,description,image_url,starts_at,ends_at,is_active").eq("is_active", true).order("created_at", { ascending: false }).then(({ data }) => {
+      if (active) setItems(((data || []) as Activity[]).filter(a => (!a.starts_at || new Date(a.starts_at) <= new Date()) && (!a.ends_at || new Date(a.ends_at) >= new Date())));
+    });
+    return () => { active = false; };
+  }, []);
+  if (!items.length) return null;
+  return <section className="activity-feed"><h3><Megaphone size={17}/> 最新活動與公告</h3>{items.map(a => <article key={a.id}>{a.image_url && <img src={a.image_url} alt=""/>}<div><b>{a.title}</b>{a.description && <p>{a.description}</p>}</div></article>)}</section>;
+}
