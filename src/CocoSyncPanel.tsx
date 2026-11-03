@@ -48,11 +48,11 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
         const id = existingMap.get(item.key);
         const result = id
           ? await db.from("menu_items").update({ name: payload.name, description: payload.description, price: payload.price, category: payload.category, is_available: true, stock: 999, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
-          : await db.from("menu_items").insert({ ...payload, stock: 0, is_available: true, stock: 999, sort_order: 500 + created });
+          : await db.from("menu_items").insert({ ...payload, stock: 999, is_available: true, sort_order: 500 + created });
         if (result.error) throw result.error;
         if (id) updated++; else created++;
       }
-      const message = `CoCo 商品同步完成：新增 ${created} 項、更新 ${updated} 項。新商品預設下架且庫存為 0，已立即上架（預設庫存 999）；請依實際供應調整庫存。`;
+      const message = `CoCo 商品同步完成：新增 ${created} 項、更新 ${updated} 項。同步商品已立即上架（庫存 999）；請依實際供應調整庫存。`;
       setLastResult(message); onMessage(message); await onRefresh();
     } catch (error: any) {
       onMessage("CoCo 商品同步失敗：" + (error?.message || "未知錯誤"));
@@ -72,7 +72,7 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
         const payload = { title: deal.title, description: deal.description, starts_at: deal.startsAt, ends_at: deal.endsAt, source_brand: "coco", source_key: deal.key, source_url: deal.sourceUrl, source_checked_at: now };
         const id = existingMap.get(deal.key);
         const result = id
-          ? await db.from("activities").update({ title: payload.title, description: payload.description, starts_at: payload.starts_at, ends_at: payload.ends_at, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
+          ? await db.from("activities").update({ title: payload.title, description: payload.description, starts_at: payload.starts_at, ends_at: payload.ends_at, is_active: true, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
           : await db.from("activities").insert({ ...payload, is_active: true });
         if (result.error) throw result.error;
         if (id) updated++; else created++;
