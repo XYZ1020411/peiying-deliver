@@ -16,7 +16,9 @@ const statusNames: Record<string, string> = { pending: "待確認", confirmed: "
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
+  const [application, setApplication] = useState<any>(null);
+  const [applicationLoading, setApplicationLoading] = useState(false);
+  const [applicationForm, setApplicationForm] = useState({ student_name: "", grade: "國二", class_name: "", courses: [] as string[], notification_method: "email", line_contact: "" });
   const [studentName, setStudentName] = useState("");
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [schedule, setSchedule] = useState<Delivery[]>([]);
@@ -43,12 +45,21 @@ export default function App() {
   useEffect(() => {
     let live = true;
     async function load() {
-      if (!supabase || !session) { setChecking(false); setAllowed(false); return; }
+      if (!supabase || !session) { setChecking(false); setApplication(null); return; }
       setChecking(true);
-      if (isAdmin) { if (live) { setAllowed(true); setStudentName("平台管理員"); } }
+      if (isAdmin) { if (live) setStudentName("平台管理員"); }
       else {
-        const { data, error } = await supabase.from("student_allowlist").select("student_name,is_active").eq("email", email).maybeSingle();
-        if (live) { setAllowed(!error && !!data?.is_active); setStudentName(data?.student_name || "培英同學"); }
+        const { data: appData } = await supabase.from("student_applications").select("*").eq("user_id", session.user.id).maybeSingle();
+        if (live) {
+          setApplication(appData);
+          if (appData) {
+            setStudentName(appData.student_name || "培英同學");
+            setApplicationForm({ student_name: appData.student_name || "", grade: appData.grade || "國二", class_name: appData.class_name || "", courses: appData.courses || [], notification_method: appData.notification_method || "email", line_contact: appData.line_contact || "" });
+          } else {
+            setStudentName("");
+            setApplicationForm(v => ({ ...v, student_name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || "" }));
+          }
+        }
       }
       const [m, d, o] = await Promise.all([
         supabase.from("menu_items").select("id,name,description,price,image_url,stock,is_available").eq("is_available", true).order("sort_order"),
@@ -67,13 +78,13 @@ export default function App() {
   }, [session, email, isAdmin]);
 
   useEffect(() => {
-    if (!supabase || !session || !allowed) return;
+    if (!supabase || !session || (!isAdmin && application?.status !== "approved")) return;
     const channel = supabase.channel("peiying-orders-live").on("postgres_changes", { event: "*", schema: "public", table: "orders" }, async () => {
       const { data } = await supabase.from("orders").select("id,customer_name,customer_email,delivery_date,delivery_destination,status,total_amount,note,created_at").order("created_at", { ascending: false }).limit(isAdmin ? 100 : 30);
       setOrders((data || []) as Order[]);
     }).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [session, allowed, isAdmin]);
+  }, [session, application?.status, isAdmin]);
 
   const total = useMemo(() => menu.reduce((sum, item) => sum + item.price * (cart[item.id] || 0), 0), [menu, cart]);
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
@@ -84,6 +95,20 @@ export default function App() {
     if (error) setMessage(provider === "custom:line" ? `LINE 登入尚未完成設定：${error.message}` : `Google 登入失敗：${error.message}`);
   }
   async function signOut() { await supabase?.auth.signOut(); setCart({}); }
+  async function submitApplication() {
+    if (!supabase || !session) return;
+    if (!applicationForm.student_name.trim() || !applicationForm.class_name.trim() || !applicationForm.courses.length) {
+      setMessage("請填寫姓名、班級並至少勾選一項課程。"); return;
+    }
+    setApplicationLoading(true); setMessage("");
+    const payload = { user_id: session.user.id, email, student_name: applicationForm.student_name.trim(), grade: applicationForm.grade, class_name: applicationForm.class_name.trim(), courses: applicationForm.courses, notification_method: applicationForm.notification_method, line_contact: applicationForm.line_contact.trim() || null, status: "pending" };
+    const result = application?.id
+      ? await supabase.from("student_applications").update(payload).eq("user_id", session.user.id).select("*").single()
+      : await supabase.from("student_applications").insert(payload).select("*").single();
+    setApplicationLoading(false);
+    if (result.error) { setMessage("申請送出失敗：" + result.error.message); return; }
+    setApplication(result.data); setStudentName(result.data.student_name); setMessage("申請已送出，請等待管理員審核。");
+  }
   async function refresh() {
     if (!supabase) return;
     const { data } = await supabase.from("orders").select("id,customer_name,customer_email,delivery_date,delivery_destination,status,total_amount,note,created_at").order("created_at", { ascending: false }).limit(isAdmin ? 100 : 30);
@@ -119,7 +144,30 @@ export default function App() {
   if (!supabase) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><h1>培英外送點餐平台</h1><p>尚未設定 Supabase 前端環境變數。</p><p className="muted">請在 Cloudflare Pages 設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。</p></section></main>;
   if (checking) return <main className="center"><div className="loader" /><p>正在確認登入與學生資格…</p></main>;
   if (!session) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><span className="eyebrow">PEIYING STUDENT SERVICE</span><h1>培英外送<br/><em>點餐平台</em></h1><p>今天想吃什麼？快速選餐、線上送單，輕鬆掌握訂單進度。</p><button className="google-btn" onClick={() => signIn("google")}><span className="google-g">G</span> 使用 Google 帳號登入</button><button className="line-btn" onClick={() => signIn("custom:line")}><span className="line-logo">LINE</span> 使用 LINE 帳號登入</button>{message && <p className="login-error" role="alert">{message}</p>}<small>僅開放通過培英學生白名單的帳號使用；LINE 登入需取得並驗證電子郵件</small></section></main>;
-  if (!allowed) return <main className="center"><section className="login-card"><div className="brand-mark warning">!</div><h1>尚未開通使用資格</h1><p>目前登入帳號 <b>{email}</b> 不在培英學生名單中。</p><p className="muted">請確認使用已登記的 Google 帳號，或聯絡平台管理員。</p><button className="outline-btn" onClick={signOut}>登出並切換帳號</button></section></main>;
+  if (!isAdmin && application?.status !== "approved") return <main className="center"><section className="login-card application-card">
+    <div className="brand-mark"><Utensils /></div><span className="eyebrow">STUDENT ACCESS APPLICATION</span>
+    <h1>{application?.status === "pending" ? "申請審核中" : application?.status === "rejected" ? "申請需要補充" : "歡迎加入培英外送"}</h1>
+    <p>登入帳號：<b>{email}</b></p>
+    {application?.status === "pending" ? <><p>已收到你的申請，管理員確認後會更新審核結果。</p><p className="muted">通知方式：{application.notification_method === "line" ? "LINE" : "電子郵件"}。你也可以稍後重新登入查看狀態。</p><button className="outline-btn" onClick={signOut}>登出</button></> :
+    <>
+      {application?.status === "rejected" && <p className="login-error">管理員備註：{application.admin_note || "請確認資料後重新送出。"}</p>}
+      <p className="muted">請填寫基本資料與目前實際參加的課程，送出後由管理員審核。</p>
+      <div className="application-form">
+        <label>你的姓名<input value={applicationForm.student_name} onChange={e => setApplicationForm(v => ({...v,student_name:e.target.value}))} placeholder="請輸入姓名"/></label>
+        <label>年級<select value={applicationForm.grade} onChange={e => setApplicationForm(v => ({...v,grade:e.target.value}))}>{["國一","國二","國三","高一","高二","高三","其他"].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>班級<input value={applicationForm.class_name} onChange={e => setApplicationForm(v => ({...v,class_name:e.target.value}))} placeholder="例如：3 班"/></label>
+        <fieldset><legend>目前有上哪些課程？（至少選一項）</legend>
+          {["國文閱讀與寫作","英文會話加強","數學解題實作","自然科學探究","社會議題討論","程式設計入門","AI 創作實驗室（示範課程）","星際數學探索（示範課程）","量子自然研究社（示範課程）"].map(c=><label className="course-option" key={c}><input type="checkbox" checked={applicationForm.courses.includes(c)} onChange={e=>setApplicationForm(v=>({...v,courses:e.target.checked?[...v.courses,c]:v.courses.filter(x=>x!==c)}))}/>{c}</label>)}
+          <small>標示「示範課程」為平台測試選項，請依實際情況勾選，管理員會再核對。</small>
+        </fieldset>
+        <label>審核結果通知方式<select value={applicationForm.notification_method} onChange={e=>setApplicationForm(v=>({...v,notification_method:e.target.value}))}><option value="email">電子郵件（登入信箱）</option><option value="line">LINE（需提供可聯絡的 LINE ID）</option></select></label>
+        {applicationForm.notification_method === "line" && <label>LINE ID／聯絡方式<input value={applicationForm.line_contact} onChange={e=>setApplicationForm(v=>({...v,line_contact:e.target.value}))} placeholder="請填寫可聯絡的 LINE ID"/></label>}
+        <button className="line-btn" disabled={applicationLoading} onClick={submitApplication}>{applicationLoading ? "送出中…" : "送出審核申請"}</button>
+      </div>
+      {message && <p className="login-error" role="alert">{message}</p>}
+      <button className="outline-btn" onClick={signOut}>登出</button>
+    </>}
+  </section></main>;
 
   return <div className="app-shell">
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark small"><Utensils size={18}/></span><span>培英外送<small>STUDENT FOOD ORDER</small></span></a><div className="user-area"><span className="avatar">{studentName.slice(0,1)}</span><span className="user-name">{studentName}</span><button className="icon-btn" title="登出" onClick={signOut}><LogOut size={18}/></button></div></header>
