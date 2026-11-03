@@ -77,7 +77,7 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
         if (result.error) throw result.error;
         if (id) updated++; else created++;
       }
-      const message = `CoCo 優惠同步完成：新增 ${created} 則、更新 ${updated} 則。活動維持草稿，請核對適用門市與期限後再發布。`;
+      const message = `CoCo 優惠同步完成：新增 ${created} 則、更新 ${updated} 則。優惠已立即發布；請確認適用門市與期限。`;
       setLastResult(message); onMessage(message);
     } catch (error: any) {
       onMessage("CoCo 優惠同步失敗：" + (error?.message || "未知錯誤"));
