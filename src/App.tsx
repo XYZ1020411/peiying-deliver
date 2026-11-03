@@ -77,9 +77,11 @@ export default function App() {
 
   const total = useMemo(() => menu.reduce((sum, item) => sum + item.price * (cart[item.id] || 0), 0), [menu, cart]);
   const count = Object.values(cart).reduce((a, b) => a + b, 0);
-  async function signIn() {
+  async function signIn(provider: "google" | "custom:line" = "google") {
     if (!supabase) return;
-    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    setMessage("");
+    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin, ...(provider === "custom:line" ? { scopes: "openid profile email" } : {}) } });
+    if (error) setMessage(provider === "custom:line" ? `LINE 登入尚未完成設定：${error.message}` : `Google 登入失敗：${error.message}`);
   }
   async function signOut() { await supabase?.auth.signOut(); setCart({}); }
   async function refresh() {
@@ -94,7 +96,7 @@ export default function App() {
     setBusy(true); setMessage("");
     const { data: order, error } = await supabase.from("orders").insert({
       user_id: session.user.id, customer_email: email, customer_name: studentName,
-      delivery_date: todayKey, delivery_weekday: weekday, delivery_destination: todaysDelivery.destination, note
+      delivery_date: todayKey, delivery_destination: todaysDelivery.destination, note
     }).select("id").single();
     if (error || !order) { setMessage(error?.message || "訂單建立失敗，請稍後再試。"); setBusy(false); return; }
     const rows = Object.entries(cart).filter(([, quantity]) => quantity > 0).map(([menu_item_id, quantity]) => ({ order_id: order.id, menu_item_id, quantity }));
@@ -116,7 +118,7 @@ export default function App() {
 
   if (!supabase) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><h1>培英外送點餐平台</h1><p>尚未設定 Supabase 前端環境變數。</p><p className="muted">請在 Cloudflare Pages 設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。</p></section></main>;
   if (checking) return <main className="center"><div className="loader" /><p>正在確認登入與學生資格…</p></main>;
-  if (!session) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><span className="eyebrow">PEIYING STUDENT SERVICE</span><h1>培英外送<br/><em>點餐平台</em></h1><p>今天想吃什麼？快速選餐、線上送單，輕鬆掌握訂單進度。</p><button className="google-btn" onClick={signIn}><span className="google-g">G</span> 使用 Google 帳號登入</button><small>僅開放通過培英學生白名單的帳號使用</small></section></main>;
+  if (!session) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><span className="eyebrow">PEIYING STUDENT SERVICE</span><h1>培英外送<br/><em>點餐平台</em></h1><p>今天想吃什麼？快速選餐、線上送單，輕鬆掌握訂單進度。</p><button className="google-btn" onClick={() => signIn("google")}><span className="google-g">G</span> 使用 Google 帳號登入</button><button className="line-btn" onClick={() => signIn("custom:line")}><span className="line-logo">LINE</span> 使用 LINE 帳號登入</button>{message && <p className="login-error" role="alert">{message}</p>}<small>僅開放通過培英學生白名單的帳號使用；LINE 登入需取得並驗證電子郵件</small></section></main>;
   if (!allowed) return <main className="center"><section className="login-card"><div className="brand-mark warning">!</div><h1>尚未開通使用資格</h1><p>目前登入帳號 <b>{email}</b> 不在培英學生名單中。</p><p className="muted">請確認使用已登記的 Google 帳號，或聯絡平台管理員。</p><button className="outline-btn" onClick={signOut}>登出並切換帳號</button></section></main>;
 
   return <div className="app-shell">
