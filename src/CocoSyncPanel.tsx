@@ -26,8 +26,8 @@ const catalog: CatalogItem[] = [
 ];
 
 const deals: Deal[] = [
-  { key: "coco-deal-milktea-trio-202611", title: "CoCo 奶茶三兄弟大杯特價 $45", description: "活動資訊標示 2026/11/1～11/30。來源頁面列示原價 $70、優惠價 $45；適用門市、通路及數量限制請以 CoCo 官方公告與門市為準。此優惠先匯入草稿，不會自動改動點餐價格。", startsAt: "2026-11-01T00:00:00+08:00", endsAt: "2026-11-30T23:59:59+08:00", sourceUrl: couponSource },
-  { key: "coco-deal-two-99-20261105", title: "CoCo 指定飲品任選 2 杯 $99", description: "活動資訊標示 2026/10/29～11/5，包含指定大杯飲品；臨櫃與都可訂限定，非全門市活動，部分門市不適用。品項與適用條件請依官方公告確認。此優惠先匯入草稿，不會自動改動點餐價格。", startsAt: "2026-10-29T00:00:00+08:00", endsAt: "2026-11-05T23:59:59+08:00", sourceUrl: dealSource }
+  { key: "coco-deal-milktea-trio-202611", title: "CoCo 奶茶三兄弟大杯特價 $45", description: "活動資訊標示 2026/11/1～11/30。來源頁面列示原價 $70、優惠價 $45；適用門市、通路及數量限制請以 CoCo 官方公告與門市為準。優惠公告已啟用；目前不會自動改動點餐價格。", startsAt: "2026-11-01T00:00:00+08:00", endsAt: "2026-11-30T23:59:59+08:00", sourceUrl: couponSource },
+  { key: "coco-deal-two-99-20261105", title: "CoCo 指定飲品任選 2 杯 $99", description: "活動資訊標示 2026/10/29～11/5，包含指定大杯飲品；臨櫃與都可訂限定，非全門市活動，部分門市不適用。品項與適用條件請依官方公告確認。優惠公告已啟用；目前不會自動改動點餐價格。", startsAt: "2026-10-29T00:00:00+08:00", endsAt: "2026-11-05T23:59:59+08:00", sourceUrl: dealSource }
 ];
 
 export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (message: string) => void; onRefresh: () => Promise<void> }) {
@@ -47,12 +47,12 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
         const payload = { name: item.name, description: item.description, price: item.price, category: "CoCo飲料", source_brand: "coco", source_key: item.key, source_url: item.sourceUrl, source_checked_at: now };
         const id = existingMap.get(item.key);
         const result = id
-          ? await db.from("menu_items").update({ name: payload.name, description: payload.description, price: payload.price, category: payload.category, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
-          : await db.from("menu_items").insert({ ...payload, stock: 0, is_available: false, sort_order: 500 + created });
+          ? await db.from("menu_items").update({ name: payload.name, description: payload.description, price: payload.price, category: payload.category, is_available: true, stock: 999, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
+          : await db.from("menu_items").insert({ ...payload, stock: 0, is_available: true, stock: 999, sort_order: 500 + created });
         if (result.error) throw result.error;
         if (id) updated++; else created++;
       }
-      const message = `CoCo 商品同步完成：新增 ${created} 項、更新 ${updated} 項。新商品預設下架且庫存為 0，請先核對價格與庫存再上架。`;
+      const message = `CoCo 商品同步完成：新增 ${created} 項、更新 ${updated} 項。新商品預設下架且庫存為 0，已立即上架（預設庫存 999）；請依實際供應調整庫存。`;
       setLastResult(message); onMessage(message); await onRefresh();
     } catch (error: any) {
       onMessage("CoCo 商品同步失敗：" + (error?.message || "未知錯誤"));
@@ -73,7 +73,7 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
         const id = existingMap.get(deal.key);
         const result = id
           ? await db.from("activities").update({ title: payload.title, description: payload.description, starts_at: payload.starts_at, ends_at: payload.ends_at, source_url: payload.source_url, source_checked_at: now }).eq("id", id)
-          : await db.from("activities").insert({ ...payload, is_active: false });
+          : await db.from("activities").insert({ ...payload, is_active: true });
         if (result.error) throw result.error;
         if (id) updated++; else created++;
       }
@@ -86,10 +86,10 @@ export default function CocoSyncPanel({ onMessage, onRefresh }: { onMessage: (me
 
   return <section className="coco-sync">
     <div className="coco-sync-heading"><div><span className="eyebrow">COCO CATALOG & DEALS</span><h3>CoCo 都可同步中心</h3><p>匯入可核對的飲品資料與優惠公告，並保留來源及同步時間。</p></div><span className="coco-brand-mark">CoCo</span></div>
-    <div className="coco-sync-warning"><Info size={18}/><p>目前採「來源資料匯入＋管理員確認」方式，並非 CoCo 官方即時 API。不同門市可能有不同售價、供應品項與活動條件。匯入商品會先下架、庫存設為 0；優惠會先存成未發布草稿，不會直接影響訂單金額。</p></div>
+    <div className="coco-sync-warning"><Info size={18}/><p>目前採「來源資料匯入＋管理員確認」方式，並非 CoCo 官方即時 API。不同門市可能有不同售價、供應品項與活動條件。同步商品會立即上架並設定庫存 999；優惠會立即發布公告，但目前不會自動折抵訂單金額。</p></div>
     <div className="coco-sync-actions">
-      <article><div><b>飲品商品目錄</b><small>{catalog.length} 個品項（含容量與價格）</small><p>依近期公開菜單／新品資料建立初始目錄。同步會更新 CoCo 品項價格與描述，但保留你已設定的庫存、圖片及上架狀態。</p><a href={productSource} target="_blank" rel="noreferrer">新品價格來源 <ExternalLink size={13}/></a> · <a href={menuSource} target="_blank" rel="noreferrer">菜單參考 <ExternalLink size={13}/></a></div><button disabled={!!busy} onClick={() => void syncProducts()}><RefreshCw size={15}/>{busy === "products" ? "同步中…" : "同步 CoCo 商品"}</button></article>
-      <article><div><b>優惠與活動</b><small>{deals.length} 則優惠公告</small><p>同步優惠標題、活動期限、條件及來源。已存在的活動只更新內容，不會擅自改變你設定的發布狀態。</p><a href={couponSource} target="_blank" rel="noreferrer">奶茶三兄弟優惠來源 <ExternalLink size={13}/></a> · <a href={dealSource} target="_blank" rel="noreferrer">任選 2 杯 $99 來源 <ExternalLink size={13}/></a></div><button disabled={!!busy} onClick={() => void syncDeals()}><RefreshCw size={15}/>{busy === "deals" ? "同步中…" : "同步 CoCo 優惠"}</button></article>
+      <article><div><b>飲品商品目錄</b><small>{catalog.length} 個品項（含容量與價格）</small><p>依近期公開菜單／新品資料建立初始目錄。同步會更新 CoCo 品項價格、描述，並立即上架、將庫存設為 999；圖片保留原設定。</p><a href={productSource} target="_blank" rel="noreferrer">新品價格來源 <ExternalLink size={13}/></a> · <a href={menuSource} target="_blank" rel="noreferrer">菜單參考 <ExternalLink size={13}/></a></div><button disabled={!!busy} onClick={() => void syncProducts()}><RefreshCw size={15}/>{busy === "products" ? "同步中…" : "同步 CoCo 商品"}</button></article>
+      <article><div><b>優惠與活動</b><small>{deals.length} 則優惠公告</small><p>同步優惠標題、活動期限、條件及來源。同步後活動立即發布；管理員仍可在活動管理調整或下架。</p><a href={couponSource} target="_blank" rel="noreferrer">奶茶三兄弟優惠來源 <ExternalLink size={13}/></a> · <a href={dealSource} target="_blank" rel="noreferrer">任選 2 杯 $99 來源 <ExternalLink size={13}/></a></div><button disabled={!!busy} onClick={() => void syncDeals()}><RefreshCw size={15}/>{busy === "deals" ? "同步中…" : "同步 CoCo 優惠"}</button></article>
     </div>
     {lastResult && <p className="coco-sync-result"><CheckCircle2 size={16}/>{lastResult}</p>}
     <small className="coco-sync-footnote">商品價格參考：Beauty321 2026/11 新品資訊、TVBS 食尚玩家菜單整理；優惠來源為公開優惠整理頁，並非 CoCo 官方 API。上架及對外公告前請再向供應門市確認。</small>
