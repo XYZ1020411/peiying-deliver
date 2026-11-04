@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 import AdminPanel, { ActivityFeed } from "./AdminPanel";
-import { ShoppingBag, LogOut, Plus, Minus, ClipboardList, ShieldCheck, Clock3, MapPin, RefreshCw, Utensils, PackageCheck } from "lucide-react";
+import LoyaltyPanel from "./LoyaltyPanel";
+import { ShoppingBag, LogOut, Plus, Minus, ClipboardList, ShieldCheck, Clock3, MapPin, RefreshCw, Utensils, PackageCheck, Gift } from "lucide-react";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -25,7 +26,7 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
-  const [tab, setTab] = useState<"menu" | "orders" | "admin">("menu");
+  const [tab, setTab] = useState<"menu" | "orders" | "rewards" | "admin">("menu");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const email = session?.user.email?.toLowerCase() ?? "";
@@ -175,12 +176,13 @@ export default function App() {
       <section className="welcome"><div><span className="eyebrow">GOOD FOOD, GOOD DAY</span><h1>午餐時間，<em>交給我們。</em></h1><p>嗨，{studentName}！今天也要好好吃飯。</p></div><div className="date-pill"><Clock3 size={16}/>{todayKey} 星期{dayNames[weekday]}</div></section>
       <section className="delivery-banner"><div className="delivery-icon"><MapPin/></div><div><b>今日配送地點</b><strong>{todaysDelivery?.destination || "今日暫停配送"}</strong><small>{todaysDelivery ? "請於送出訂單前確認配送地點" : "目前沒有安排配送，請留意最新公告"}</small></div><span className={todaysDelivery ? "open-tag" : "closed-tag"}>{todaysDelivery ? "開放訂餐" : "未開放"}</span></section>
       {message && <div className="notice" role="status">{message}<button onClick={() => setMessage("")}>×</button></div>}
-      <nav className="tabs"><button className={tab === "menu" ? "active" : ""} onClick={() => setTab("menu")}><Utensils size={17}/> 今日菜單</button><button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ClipboardList size={17}/> 我的訂單</button>{isAdmin && <button className={tab === "admin" ? "active" : ""} onClick={() => setTab("admin")}><ShieldCheck size={17}/> 管理面板</button>}</nav>
+      <nav className="tabs"><button className={tab === "menu" ? "active" : ""} onClick={() => setTab("menu")}><Utensils size={17}/> 今日菜單</button><button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ClipboardList size={17}/> 我的訂單</button><button className={tab === "rewards" ? "active" : ""} onClick={() => setTab("rewards")}><Gift size={17}/> 會員中心</button>{isAdmin && <button className={tab === "admin" ? "active" : ""} onClick={() => setTab("admin")}><ShieldCheck size={17}/> 管理面板</button>}</nav>
       {tab === "menu" && <><div className="section-heading"><div><span className="eyebrow">TODAY'S MENU</span><h2>挑選你的餐點</h2></div><button className="refresh-btn" onClick={refresh}><RefreshCw size={16}/> 更新</button></div>
         <ActivityFeed />
         {menu.length ? <div className="menu-grid">{menu.map(item => <article className="menu-card" key={item.id}><div className="food-photo">{item.image_url ? <img src={item.image_url} alt={item.name}/> : <span>🍱</span>}</div><div className="menu-info"><div className="food-title"><h3>{item.name}</h3><b>NT$ {item.price}</b></div><p>{item.description || "每日新鮮準備，讓你吃得滿足。"}</p><div className="food-bottom"><small>剩餘 {item.stock} 份</small><div className="quantity"><button disabled={!cart[item.id]} onClick={() => setCart(c => ({...c,[item.id]:Math.max(0,(c[item.id]||0)-1)}))}><Minus size={15}/></button><b>{cart[item.id] || 0}</b><button disabled={item.stock <= (cart[item.id]||0)} onClick={() => setCart(c => ({...c,[item.id]:(c[item.id]||0)+1}))}><Plus size={15}/></button></div></div></div></article>)}</div> : <div className="empty"><span>🍽️</span><h3>菜單準備中</h3><p>管理員上架餐點後，就會顯示在這裡。</p></div>}
         <section className="checkout"><div><span className="eyebrow">YOUR ORDER</span><h3><ShoppingBag size={19}/> 訂單摘要</h3><p>{count} 項餐點 · 配送至 {todaysDelivery?.destination || "—"}</p></div><div className="checkout-action"><strong>NT$ {total}</strong><button disabled={!todaysDelivery || !count || busy} onClick={placeOrder}>{busy ? "送出中…" : "確認送出訂單"}</button></div><textarea value={note} onChange={e => setNote(e.target.value)} placeholder="餐點備註（選填）例如：不要加辣、少冰…" /></section>
       </>}
+      {tab === "rewards" && <LoyaltyPanel userId={session.user.id} onMessage={setMessage}/>}
       {tab === "orders" && <><div className="section-heading"><div><span className="eyebrow">ORDER HISTORY</span><h2>我的訂單</h2></div><button className="refresh-btn" onClick={refresh}><RefreshCw size={16}/> 更新</button></div>{orders.length ? <div className="orders-list">{orders.map(o => <article className="order-card" key={o.id}><div className="order-head"><div><small>訂單編號</small><b>#{o.id.slice(0,8).toUpperCase()}</b></div><span className={"status status-"+o.status}>{statusNames[o.status] || o.status}</span></div><div className="order-meta"><span><MapPin size={14}/>{o.delivery_destination}</span><span>{o.delivery_date}</span></div><div className="order-total"><small>{new Date(o.created_at).toLocaleString("zh-TW")}</small><b>NT$ {o.total_amount}</b></div>{o.note && <p className="order-note">備註：{o.note}</p>}{isAdmin && <div className="admin-status"><label>更新狀態</label><select value={o.status} onChange={e => changeStatus(o.id,e.target.value)}>{Object.entries(statusNames).map(([k,v]) => <option value={k} key={k}>{v}</option>)}</select></div>}</article>)}</div> : <div className="empty"><PackageCheck/><h3>還沒有訂單</h3><p>選好今天的餐點後，訂單會出現在這裡。</p></div>}</>}
       {tab === "admin" && isAdmin && <><div className="section-heading"><div><span className="eyebrow">ADMIN CONSOLE</span><h2>管理面板</h2></div><span className="admin-chip"><ShieldCheck size={15}/> 管理員</span></div><div className="stats-grid"><div className="stat-card"><small>今日訂單</small><strong>{orders.filter(o => o.delivery_date === todayKey && o.status !== "cancelled").length}</strong></div><div className="stat-card"><small>今日營業額</small><strong>NT$ {orders.filter(o => o.delivery_date === todayKey && o.status !== "cancelled").reduce((s,o)=>s+o.total_amount,0)}</strong></div><div className="stat-card"><small>待確認訂單</small><strong>{orders.filter(o=>o.status==="pending").length}</strong></div></div><AdminPanel onRefresh={refresh} onMessage={setMessage}/></>}
     </main>
