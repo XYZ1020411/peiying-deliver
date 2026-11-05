@@ -29,8 +29,12 @@ export default function App() {
   const [tab, setTab] = useState<"menu" | "orders" | "rewards" | "admin">("menu");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const email = session?.user.email?.toLowerCase() ?? "";
-  const isAdmin = email === ADMIN_EMAIL;
+  
   const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
   const weekday = today.getDay();
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(new Date());
@@ -43,9 +47,7 @@ export default function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    let live = true;
-    async function load() {
+  useEffect(() => {\n    let live = true;\n    async function verifySpecialAccount() {\n      if (!supabase || !session || !email) { setIsAdmin(false); return; }\n      if (email === ADMIN_EMAIL) { setIsAdmin(true); return; }\n      const { data } = await supabase.from("special_accounts").select("role").eq("email", email).maybeSingle();\n      if (live) setIsAdmin(data?.role === "admin" || data?.role === "manager");\n    }\n    void verifySpecialAccount();\n    return () => { live = false; };\n  }, [session, email]);\n\n  useEffect(() => {\n    let live = true;\n    async function load() {
       if (!supabase || !session) { setChecking(false); setApplication(null); return; }
       setChecking(true);
       if (isAdmin) { if (live) setStudentName("平台管理員"); }
@@ -95,7 +97,7 @@ export default function App() {
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin, ...(provider === "custom:line" ? { scopes: "openid profile email" } : {}) } });
     if (error) setMessage(provider === "custom:line" ? `LINE 登入尚未完成設定：${error.message}` : `Google 登入失敗：${error.message}`);
   }
-  async function signOut() { await supabase?.auth.signOut(); setCart({}); }
+  async function signOut() { await supabase?.auth.signOut(); setCart({}); }\n  async function submitEmailAuth() {\n    if (!supabase) return;\n    const e = authEmail.trim().toLowerCase();\n    if (!e || authPassword.length < 8) { setMessage("請輸入有效電子郵件，密碼至少 8 個字元。"); return; }\n    setBusy(true); setMessage("");\n    if (authMode === "register") {\n      const { data, error } = await supabase.auth.signUp({ email: e, password: authPassword, options: { emailRedirectTo: window.location.origin } });\n      setBusy(false);\n      if (error) setMessage("註冊失敗：" + error.message);\n      else if (data.session) setMessage("註冊成功，正在登入…");\n      else setMessage("註冊申請已建立，請至信箱完成電子郵件驗證後登入。");\n    } else {\n      const { error } = await supabase.auth.signInWithPassword({ email: e, password: authPassword });\n      setBusy(false); if (error) setMessage("登入失敗：" + error.message);\n    }\n  }
   async function submitApplication() {
     if (!supabase || !session) return;
     if (!applicationForm.student_name.trim() || !applicationForm.class_name.trim() || !applicationForm.courses.length) {
@@ -144,7 +146,7 @@ export default function App() {
 
   if (!supabase) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><h1>培英外送點餐平台</h1><p>尚未設定 Supabase 前端環境變數。</p><p className="muted">請在 Cloudflare Pages 設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。</p></section></main>;
   if (checking) return <main className="center"><div className="loader" /><p>正在確認登入與學生資格…</p></main>;
-  if (!session) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><span className="eyebrow">PEIYING STUDENT SERVICE</span><h1>培英外送<br/><em>點餐平台</em></h1><p>今天想吃什麼？快速選餐、線上送單，輕鬆掌握訂單進度。</p><button className="google-btn" onClick={() => signIn("google")}><span className="google-g">G</span> 使用 Google 帳號登入</button><button className="line-btn" onClick={() => signIn("custom:line")}><span className="line-logo">LINE</span> 使用 LINE 帳號登入</button>{message && <p className="login-error" role="alert">{message}</p>}<small>首次登入請填寫學生資料，管理員審核通過後即可使用；LINE 登入需取得電子郵件</small></section></main>;
+  if (!session) return <main className="center"><section className="login-card"><div className="brand-mark"><Utensils /></div><span className="eyebrow">PEIYING STUDENT SERVICE</span><h1>培英外送<br/><em>點餐平台</em></h1><p>今天想吃什麼？快速選餐、線上送單，輕鬆掌握訂單進度。</p><div className="auth-switch"><button className={authMode==="login"?"selected":""} onClick={()=>{setAuthMode("login");setMessage("");}}>登入</button><button className={authMode==="register"?"selected":""} onClick={()=>{setAuthMode("register");setMessage("");}}>建立帳號</button></div><div className="auth-fields"><label>電子郵件<input type="email" autoComplete="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="name@example.com"/></label><label>密碼<input type="password" autoComplete={authMode==="login"?"current-password":"new-password"} value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="至少 8 個字元"/></label><button className="admin-primary" disabled={busy} onClick={()=>void submitEmailAuth()}>{busy?"處理中…":authMode==="login"?"電子郵件登入":"註冊新帳號"}</button></div><div className="auth-divider">或使用其他方式</div><button className="google-btn" onClick={() => signIn("google")}><span className="google-g">G</span> 使用 Google 帳號登入</button><button className="line-btn" onClick={() => signIn("custom:line")}><span className="line-logo">LINE</span> 使用 LINE 帳號登入</button>{message && <p className="login-error" role="alert">{message}</p>}<small>註冊後請完成信箱驗證，再填寫學生資料申請使用。特殊管理帳戶由管理員授權。</small></section></main>;
   if (!isAdmin && application?.status !== "approved") return <main className="center"><section className="login-card application-card">
     <div className="brand-mark"><Utensils /></div><span className="eyebrow">STUDENT ACCESS APPLICATION</span>
     <h1>{application?.status === "pending" ? "申請審核中" : application?.status === "rejected" ? "申請需要補充" : "歡迎加入培英外送"}</h1>
