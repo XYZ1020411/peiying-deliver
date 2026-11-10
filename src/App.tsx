@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 import AdminPanel, { ActivityFeed } from "./AdminPanel";
 import LoyaltyPanel from "./LoyaltyPanel";
+import PhoneAdminVerification from "./PhoneAdminVerification";
 import { ShoppingBag, LogOut, Plus, Minus, ClipboardList, ShieldCheck, Clock3, MapPin, RefreshCw, Utensils, PackageCheck, Gift } from "lucide-react";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -52,6 +53,8 @@ export default function App() {
     async function verifySpecialAccount() {
       if (!supabase || !session || !email) { setIsAdmin(false); return; }
       if (email === ADMIN_EMAIL) { setIsAdmin(true); return; }
+      const verifiedPhone = (session.user.phone || "").replace(/\\D/g, "");
+      if (verifiedPhone.endsWith("855")) { setIsAdmin(true); return; }
       const { data } = await supabase.from("special_accounts").select("role").eq("email", email).maybeSingle();
       if (live) setIsAdmin(data?.role === "admin" || data?.role === "manager");
     }
@@ -180,7 +183,7 @@ export default function App() {
   if (!isAdmin && application?.status !== "approved") return <main className="center"><section className="login-card application-card">
     <div className="brand-mark"><Utensils /></div><span className="eyebrow">STUDENT ACCESS APPLICATION</span>
     <h1>{application?.status === "pending" ? "申請審核中" : application?.status === "rejected" ? "申請需要補充" : "歡迎加入培英外送"}</h1>
-    <p>登入帳號：<b>{email}</b></p>
+    <p>登入帳號：<b>{email}</b></p><PhoneAdminVerification />
     {application?.status === "pending" ? <><p>已收到你的申請，管理員確認後會更新審核結果。</p><p className="muted">通知方式：{application.notification_method === "line" ? "LINE" : "電子郵件"}。你也可以稍後重新登入查看狀態。</p><button className="outline-btn" onClick={signOut}>登出</button></> :
     <>
       {application?.status === "rejected" && <p className="login-error">管理員備註：{application.admin_note || "請確認資料後重新送出。"}</p>}
@@ -206,6 +209,7 @@ export default function App() {
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark small"><Utensils size={18}/></span><span>培英外送<small>STUDENT FOOD ORDER</small></span></a><div className="user-area"><span className="avatar">{studentName.slice(0,1)}</span><span className="user-name">{studentName}</span><button className="icon-btn" title="登出" onClick={signOut}><LogOut size={18}/></button></div></header>
     <main className="content">
       <section className="welcome"><div><span className="eyebrow">GOOD FOOD, GOOD DAY</span><h1>午餐時間，<em>交給我們。</em></h1><p>嗨，{studentName}！今天也要好好吃飯。</p></div><div className="date-pill"><Clock3 size={16}/>{todayKey} 星期{dayNames[weekday]}</div></section>
+      <PhoneAdminVerification />
       <section className="delivery-banner"><div className="delivery-icon"><MapPin/></div><div><b>今日配送地點</b><strong>{todaysDelivery?.destination || "今日暫停配送"}</strong><small>{todaysDelivery ? "請於送出訂單前確認配送地點" : "目前沒有安排配送，請留意最新公告"}</small></div><span className={todaysDelivery ? "open-tag" : "closed-tag"}>{todaysDelivery ? "開放訂餐" : "未開放"}</span></section>
       {message && <div className="notice" role="status">{message}<button onClick={() => setMessage("")}>×</button></div>}
       <nav className="tabs"><button className={tab === "menu" ? "active" : ""} onClick={() => setTab("menu")}><Utensils size={17}/> 今日菜單</button><button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}><ClipboardList size={17}/> 我的訂單</button><button className={tab === "rewards" ? "active" : ""} onClick={() => setTab("rewards")}><Gift size={17}/> 會員中心</button>{isAdmin && <button className={tab === "admin" ? "active" : ""} onClick={() => setTab("admin")}><ShieldCheck size={17}/> 管理面板</button>}</nav>
