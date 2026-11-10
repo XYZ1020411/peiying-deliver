@@ -47,7 +47,7 @@ export default function PhoneAdminVerification() {
     {verifiedPhone ? <p style={{fontSize:14}}>已驗證號碼：{verifiedPhone}</p> : <>
       <label style={{display:"block",fontSize:13,marginBottom:8}}>手機號碼<input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="09xxxxxxxx 或 +8869xxxxxxxx" disabled={sent} style={{display:"block",width:"100%",padding:10,marginTop:5,border:"1px solid #cbd5e1",borderRadius:8}}/></label>
       {sent && <label style={{display:"block",fontSize:13,marginBottom:8}}>簡訊驗證碼<input value={code} onChange={e=>setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" placeholder="輸入驗證碼" style={{display:"block",width:"100%",padding:10,marginTop:5,border:"1px solid #cbd5e1",borderRadius:8}}/></label>}
-      <button type="button" disabled={pending} onClick={()=>void (sent?verifyCode():sendCode())} style={{padding:"9px 14px",border:0,borderRadius:8,background:"#176b50",color:"white",fontWeight:600,opacity:pending?.65:1}}>{pending?"處理中…":sent?"確認驗證":"發送簡訊驗證碼"}</button>
+      <button type="button" disabled={pending} onClick={()=>void (sent?verifyCode():sendCode())} style={{padding:"9px 14px",border:0,borderRadius:8,background:"#176b50",color:"white",fontWeight:600,opacity:pending ? 0.65 : 1}}>{pending?"處理中…":sent?"確認驗證":"發送簡訊驗證碼"}</button>
     </>}
     {message && <p role="status" style={{fontSize:13,margin:"10px 0 0",color:"#176b50"}}>{message}</p>}
     <small style={{display:"block",marginTop:10,color:"#64748b"}}>此驗證是網站簡訊驗證，不代表 LINE 本身已向網站提供電話資料。</small>
