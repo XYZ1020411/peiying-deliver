@@ -52,8 +52,8 @@ export default function App() {
     async function verifySpecialAccount() {
       if (!supabase || !session || !email) { setIsAdmin(false); return; }
       if (email === ADMIN_EMAIL) { setIsAdmin(true); return; }
-      const { data } = await supabase.from("special_accounts").select("role").eq("email", email).maybeSingle();
-      if (live) setIsAdmin(data?.role === "admin" || data?.role === "manager");
+      const { data, error } = await supabase.rpc("is_peiying_admin");
+      if (live) setIsAdmin(!error && data === true);
     }
     void verifySpecialAccount();
     return () => { live = false; };
