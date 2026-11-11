@@ -42,9 +42,25 @@ export default function App() {
 
   useEffect(() => {
     if (!supabase) { setChecking(false); return; }
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => data.subscription.unsubscribe();
+    let active = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      setSession(data.session);
+      setChecking(false);
+      if (error) setMessage("登入狀態讀取失敗，請重新登入：" + error.message);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setChecking(false);
+      setMessage("登入狀態讀取失敗，請重新整理頁面。");
+      console.error("Supabase getSession failed", error);
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      if (!active) return;
+      setSession(next);
+      setChecking(false);
+      if (event === "SIGNED_OUT") setIsAdmin(false);
+    });
+    return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
